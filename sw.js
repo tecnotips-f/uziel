@@ -1,51 +1,55 @@
 /**
- * Service Worker para RainLearn - Lucia
- * Maneja el funcionamiento Offline y la limpieza de caché antigua.
+ * Service Worker para GameUziel
+ * Proporciona soporte Offline y gestión de caché para la PWA.
  */
 
-const CACHE_NAME = 'game-lucia-v1'; // Incrementa esto (v2, v3...) al actualizar el código
-const ASSETS = [
+const CACHE_NAME = 'gameuziel-cache-v2';
+const ASSETS_TO_CACHE = [
     './',
     './index.html',
-    'https://fonts.googleapis.com/css2?family=Archivo+Black&family=Rubik:wght@900&display=swap'
+    './manifest.json',
+    'https://fonts.googleapis.com/css2?family=Archivo+Black&family=Rubik:wght@700;900&display=swap'
 ];
 
-// Instalación: Cachear archivos esenciales
+// Evento de Instalación: Se ejecuta cuando el SW se registra por primera vez
 self.addEventListener('install', (event) => {
-    // Forzar que el nuevo SW tome el control de inmediato
+    // Forzar la activación inmediata para que el proceso de limpieza ocurra lo antes posible
     self.skipWaiting();
     
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
-            return cache.addAll(ASSETS);
+            console.log('Cacheando nuevos archivos de GameUziel...');
+            return cache.addAll(ASSETS_TO_CACHE);
         })
     );
 });
 
-// Activación: Borrar caché previa si existe una versión antigua instalada
+// Evento de Activación: Limpia la caché antigua PRIMERO antes de tomar el control
 self.addEventListener('activate', (event) => {
     event.waitUntil(
         caches.keys().then((cacheNames) => {
             return Promise.all(
                 cacheNames.map((cacheName) => {
-                    // Si el nombre del caché no coincide con la versión actual, se borra
+                    // Si la caché encontrada no coincide con el nombre actual, se elimina de inmediato
                     if (cacheName !== CACHE_NAME) {
-                        console.log('Borrando caché antigua:', cacheName);
+                        console.log('Limpiando caché antigua de forma prioritaria:', cacheName);
                         return caches.delete(cacheName);
                     }
                 })
             );
         }).then(() => {
-            // Reclamar el control de los clientes inmediatamente
+            console.log('Caché limpia. El Service Worker ahora tiene el control.');
+            // Permite que el Service Worker tome el control de las pestañas abiertas inmediatamente
             return self.clients.claim();
         })
     );
 });
 
-// Estrategia de Fetch: Intentar red primero, si falla usar caché (Network First)
+// Evento Fetch: Intercepta las solicitudes para servir desde el caché si no hay red
 self.addEventListener('fetch', (event) => {
     event.respondWith(
         fetch(event.request).catch(() => {
+            // Si falla la red (offline), busca en el caché actualizado
             return caches.match(event.request);
         })
     );
